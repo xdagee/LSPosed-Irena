@@ -22,5 +22,5 @@ plugins {
 }
 
 dependencies {
-    compileOnly(projects.hiddenapi.stubs)
+    implementation(projects.hiddenapi.stubs)
 }
