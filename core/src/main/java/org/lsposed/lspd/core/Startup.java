@@ -50,16 +50,41 @@ public class Startup {
         Utils.logD("startBootstrapHook starts: isSystem = " + isSystem);
         LSPosedHelper.hookMethod(CrashDumpHooker.class, Thread.class, "dispatchUncaughtException", Throwable.class);
         if (isSystem) {
-            LSPosedHelper.hookAllMethods(HandleSystemServerProcessHooker.class, ZygoteInit.class, "handleSystemServerProcess");
+            LSPosedHelper.hookAllMethods(HandleSystemServerProcessHooker.class, ZygoteInit.class,
+                    "handleSystemServerProcess");
         } else {
             LSPosedHelper.hookAllMethods(OpenDexFileHooker.class, DexFile.class, "openDexFile");
             LSPosedHelper.hookAllMethods(OpenDexFileHooker.class, DexFile.class, "openInMemoryDexFile");
             LSPosedHelper.hookAllMethods(OpenDexFileHooker.class, DexFile.class, "openInMemoryDexFiles");
         }
-        LSPosedHelper.hookConstructor(LoadedApkCtorHooker.class, LoadedApk.class,
-                ActivityThread.class, ApplicationInfo.class, CompatibilityInfo.class,
-                ClassLoader.class, boolean.class, boolean.class, boolean.class);
-        LSPosedHelper.hookMethod(LoadedApkCreateCLHooker.class, LoadedApk.class, "createOrUpdateClassLoaderLocked", List.class);
+
+        // Android 16+ may have different LoadedApk constructor signature
+        // Use hookAllConstructors for version independence
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 36) {
+                // Android 16+: Use hookAllConstructors for resilience against signature changes
+                Utils.logD("Android 16+: Using hookAllConstructors for LoadedApk");
+                LSPosedHelper.hookAllConstructors(LoadedApkCtorHooker.class, LoadedApk.class);
+            } else {
+                // Pre-Android 16: Use specific constructor signature
+                LSPosedHelper.hookConstructor(LoadedApkCtorHooker.class, LoadedApk.class,
+                        ActivityThread.class, ApplicationInfo.class, CompatibilityInfo.class,
+                        ClassLoader.class, boolean.class, boolean.class, boolean.class);
+            }
+        } catch (Throwable t) {
+            // Fallback: Try hookAllConstructors if specific signature fails
+            Utils.logW(
+                    "Failed to hook specific LoadedApk ctor, falling back to hookAllConstructors: " + t.getMessage());
+            try {
+                LSPosedHelper.hookAllConstructors(LoadedApkCtorHooker.class, LoadedApk.class);
+            } catch (Throwable t2) {
+                Utils.logE("Failed to hook LoadedApk constructors", t2);
+            }
+        }
+
+        // Use hookAllMethods for createOrUpdateClassLoaderLocked for Android 16+
+        // compatibility
+        LSPosedHelper.hookAllMethods(LoadedApkCreateCLHooker.class, LoadedApk.class, "createOrUpdateClassLoaderLocked");
         LSPosedHelper.hookAllMethods(AttachHooker.class, ActivityThread.class, "attach");
     }
 

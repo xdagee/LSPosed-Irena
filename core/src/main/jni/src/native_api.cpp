@@ -78,9 +78,24 @@ namespace lspd {
                     void* bk = nullptr;
                     return HookFunction(t, r, &bk) == RS_SUCCESS ? bk : nullptr;
                 },
-                .art_symbol_resolver = [](auto symbol) {
-                    return SandHook::ElfImg("/linker").getSymbAddress(symbol);},.art_symbol_prefix_resolver = [](auto symbol) {
-                    return SandHook::ElfImg("/linker").getSymbPrefixFirstAddress(symbol);},
+                .art_symbol_resolver = [](auto symbol) -> void* {
+                    // Use linker64 for 64-bit, linker for 32-bit - Android 16 compatible
+                    constexpr auto linker_name = lspd::is64 ? "/linker64" : "/linker";
+                    auto result = SandHook::ElfImg(linker_name).getSymbAddress(symbol);
+                    if (!result) {
+                        // Fallback to generic /linker path
+                        result = SandHook::ElfImg("/linker").getSymbAddress(symbol);
+                    }
+                    return result;
+                },
+                .art_symbol_prefix_resolver = [](auto symbol) -> void* {
+                    constexpr auto linker_name = lspd::is64 ? "/linker64" : "/linker";
+                    auto result = SandHook::ElfImg(linker_name).getSymbPrefixFirstAddress(symbol);
+                    if (!result) {
+                        result = SandHook::ElfImg("/linker").getSymbPrefixFirstAddress(symbol);
+                    }
+                    return result;
+                },
             });
         }();
         if (!initialized) [[unlikely]] return;
