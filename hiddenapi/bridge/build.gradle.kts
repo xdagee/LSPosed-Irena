@@ -22,5 +22,6 @@ plugins {
 }
 
 dependencies {
-    implementation(projects.hiddenapi.stubs)
+    compileOnly(projects.hiddenapi.stubs)
+    testImplementation(projects.hiddenapi.stubs) // Helps IDE resolution
 }
